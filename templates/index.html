@@ -1,0 +1,198 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forum</title>
+    <style>
+        /* Basic resets and styling */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        /* Styling for the form */
+        .form_like {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        label {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        button[type="submit"] {
+            background-color: #535252;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            display: inline-flex;
+            align-items: center;
+            transition: background-color 0.3s;
+        }
+
+        button[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+
+        /* Styling for the posts section */
+        .post-card {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .post-card h3 {
+            color: #4CAF50;
+            font-size: 22px;
+            margin-bottom: 15px;
+        }
+
+        .post-card p {
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+
+        /* Reply section */
+        .replies-section {
+            margin-top: 20px;
+            padding-left: 20px;
+            border-left: 4px solid #4CAF50;
+            margin-bottom: 15px;
+        }
+
+        .reply-card {
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .reply-card p {
+            font-size: 16px;
+        }
+        button.like-button .count {
+            margin-left: 10px;
+        }
+
+        .logout{
+            position: relative;
+            top: 0px;
+            left: 1400px;
+        }
+        .dashboard{
+            position: relative;
+            top: -38px;
+            left: 1275px;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .post-card {
+                padding: 15px;
+            }
+
+            form {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Forum</h1>
+    <form action="/logout" method="post">
+        <button class="logout" type="submit">Logout</button>
+    </form>
+    <form action="/dashboard" method="post">
+        <button class="dashboard" type="submit">Dashboard</button>
+    </form>
+    <!-- Form to create a new post -->
+    <h2>Create a New Post</h2>
+    <form class="form_like" action="/create_post" method="POST">
+        <label for="title">Title:</label>
+        <input type="text" name="title" required>
+        <label for="content">Content:</label>
+        <textarea name="content" rows="5" required></textarea>
+        <button type="submit">Post</button>
+    </form>
+
+    <h2>Posts</h2>
+    <div>
+        {% for post in posts %}
+        <div class="post-card">
+            <h3>{{ post.title }}</h3>
+            <p>{{ post.content }}</p>
+
+            <form action="/like/{{ post.id }}" method="POST">
+                <button class="like-button" type="submit">
+                    <span id="heartIcon">❤️</span>
+                    <span id="{{ post.id }}" class="count">{{ post.no_likes }}</span>
+                </button>
+            </form>
+            
+            <!-- Replies section -->
+            <div class="replies-section">
+                <h4>Replies:</h4>
+                {% for reply in post.replies %}
+                <div class="reply-card">
+                    <p>{{ reply.content }}</p>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Form to reply to the post -->
+            <form class="form_like" action="/reply/{{ post.id }}" method="POST">
+                <label for="content">Reply:</label>
+                <textarea name="content" rows="3" required></textarea>
+                <button type="submit">Reply</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+
+</body>
+
+</html>

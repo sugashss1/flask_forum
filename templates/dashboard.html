@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+            margin-bottom: 30px;
+        }
+        .dashboard-card {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>Forum Dashboard</h1>
+
+    <div class="dashboard-card">
+        <h2>User Engagement Summary</h2>
+        <p>Total Posts: {{ total_posts }}</p>
+        <p>Total Replies: {{ total_replies }}</p>
+        <p>Active Users (last month): {{ active_users }}</p>
+    </div>
+
+    <div class="dashboard-card">
+        <h2>Top Liked Posts</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Likes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for post in most_liked %}
+                <tr>
+                    <td>{{ post.title }}</td>
+                    <td>{{ post.no_likes }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="dashboard-card">
+        <h2>Top Commented Posts</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Replies</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for post in most_commented %}
+                <tr>
+                    <td>{{ post.title }}</td>
+                    <td>{{ post.replies|length }}</td> <!-- Count of replies -->
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</body>
+</html>
