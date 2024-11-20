@@ -3,7 +3,7 @@ from mongoengine import connect, Document, StringField, ListField, ReferenceFiel
 from hashlib import md5
 
 is_log_in=False
-current_user_id='673826e6720d6a253277342a'
+current_user_id=None
 
 connect('forum_database', host='localhost', port=27017, alias='forum_db')
 connect('user_data', host='localhost', port=27017, alias='user_db')
