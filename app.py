@@ -1,10 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for
-from mongoengine import connect, Document, StringField, ListField, ReferenceField,IntField
+from flask import Flask, render_template, request, redirect, url_for, make_response
+from mongoengine import connect, Document, StringField, ListField, ReferenceField, IntField
 from hashlib import md5
+from functools import wraps
+import secrets
 
-is_log_in=False
-current_user_id=None
-
+# Database connections
 connect('forum_database', host='localhost', port=27017, alias='forum_db')
 connect('user_data', host='localhost', port=27017, alias='user_db')
 
@@ -17,150 +17,182 @@ class Post(Document):
     no_likes = IntField(default=0)
 
     meta = {
-        'db_alias': 'forum_db'  # Specify the database for this model
+        'db_alias': 'forum_db'
     }
 
     def __str__(self):
         return f'Post(title={self.title}, content={self.content})'
-
 
 class Reply(Document):
     content = StringField(required=True)
     post = ReferenceField('Post', required=True) 
     
     meta = {
-        'db_alias': 'forum_db'  # Specify the database for this model
+        'db_alias': 'forum_db'
     }
 
     def __str__(self):
         return f'Reply(content={self.content}, post={self.post.title})'
 
-
 class user_data(Document):
     username = StringField(required=True)
     password = StringField(required=True)
     post_liked = ListField(ReferenceField('Post'))
+    session_token = StringField()  # Added field for session management
 
     meta = {
-        'db_alias': 'user_db'  # Specify the database for this model
+        'db_alias': 'user_db'
     }
 
-
 app = Flask(__name__)
+app.secret_key = secrets.token_hex(16)  # Generate a secure secret key
+
+# Login decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        session_token = request.cookies.get('session_token')
+        if not session_token:
+            return redirect(url_for('login'))
+        
+        user = user_data.objects(session_token=session_token).first()
+        if not user:
+            return redirect(url_for('login'))
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+def get_current_user():
+    session_token = request.cookies.get('session_token')
+    if session_token:
+        return user_data.objects(session_token=session_token).first()
+    return None
 
 @app.route('/')
+@login_required
 def index():
-    if not is_log_in:
-        return redirect(url_for('login'))
-    # Get all posts from the database
     posts = Post.objects()
     return render_template('index.html', posts=posts)
 
-
-@app.route('/dashboard',methods=["GET","POST"])
+@app.route('/dashboard', methods=["GET", "POST"])
+@login_required
 def dashboard():
     total_posts = Post.objects.count()
     total_replies = Reply.objects.count()
     active_users_count = user_data.objects.filter(post_liked__exists=True).count()
     
-    # Get top liked posts
-    most_liked_posts = Post.objects.order_by('-no_likes')[:5]  # Top 5 liked posts
-    most_commented_posts = Post.objects.order_by('-replies__size')[:5]  # Top 5 commented posts
+    most_liked_posts = Post.objects.order_by('-no_likes')[:5]
+    most_commented_posts = Post.objects.order_by('-replies__size')[:5]
     
     return render_template('dashboard.html', 
-                           total_posts=total_posts, 
-                           total_replies=total_replies, 
-                           active_users=active_users_count,
-                           most_liked=most_liked_posts,
-                           most_commented=most_commented_posts)
+                         total_posts=total_posts, 
+                         total_replies=total_replies, 
+                         active_users=active_users_count,
+                         most_liked=most_liked_posts,
+                         most_commented=most_commented_posts)
 
-
-# Route for the login page
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    global is_log_in,current_user_id
     if request.method == 'POST':
         username = request.form['username'].lower()
         password = request.form['password']
-        db_password = user_data.objects(username=username).first()
-        if not db_password:
-            return render_template('login.html',msg="Username not found Register")
-        current_user_id=db_password.id
-        # Control flow using if-else
-        if md5(password.encode()).hexdigest() == db_password.password:
-            is_log_in=True
-            return redirect('/')
+        user = user_data.objects(username=username).first()
+        
+        if not user:
+            return render_template('login.html', msg="Username not found Register")
+        
+        if md5(password.encode()).hexdigest() == user.password:
+            # Generate and store session token
+            session_token = secrets.token_hex(16)
+            user.update(session_token=session_token)
             
+            # Create response with redirect
+            response = make_response(redirect('/'))
+            # Set secure cookie with session token
+            response.set_cookie('session_token', 
+                              session_token, 
+                              httponly=True, 
+                              secure=True,  # Enable in production with HTTPS
+                              samesite='Strict',
+                              max_age=3600)  # 1 hour expiration
+            return response
         else:
-            return render_template('login.html',msg='Invalid Username or Password')
-    return render_template('login.html',msg="")
+            return render_template('login.html', msg='Invalid Username or Password')
+    
+    return render_template('login.html', msg="")
 
-@app.route("/logout",methods=["post"])
+@app.route("/logout", methods=["POST"])
+@login_required
 def logout():
-    global is_log_in
-    is_log_in=False
-    return redirect(url_for("login"))
+    session_token = request.cookies.get('session_token')
+    if session_token:
+        user = user_data.objects(session_token=session_token).first()
+        if user:
+            user.update(unset__session_token=1)
+    
+    response = make_response(redirect(url_for('login')))
+    response.delete_cookie('session_token')
+    return response
 
-@app.route('/register',methods=['GET','POST'])
+@app.route('/register', methods=['GET', 'POST'])
 def register():
-    if request.method=='POST':
+    if request.method == 'POST':
         username = request.form['username'].lower()
         password = request.form['password']
         confirm_password = request.form['confirm_password']
-        name=user_data.objects(username=username).first()
-        if name:
-            return render_template("register.html",msg="username already exists")
         
-        if password!=confirm_password:
-            return render_template("register.html",msg="The passwords don't match")
+        if user_data.objects(username=username).first():
+            return render_template("register.html", msg="username already exists")
+        
+        if password != confirm_password:
+            return render_template("register.html", msg="The passwords don't match")
 
-        new=user_data(username=username,password=md5(password.encode()).hexdigest())
-        new.save()
+        new_user = user_data(username=username, 
+                           password=md5(password.encode()).hexdigest())
+        new_user.save()
         return redirect(url_for('login'))
     
-    return render_template("register.html",msg="")
+    return render_template("register.html", msg="")
 
 @app.route('/create_post', methods=['POST'])
+@login_required
 def create_post():
-
-    if request.method=='POST':
-        title = request.form.get('title')
-        content = request.form.get('content')
-        
-        # Create a new post and save to the database
-        new_post = Post(title=title, content=content)
-        new_post.save()
-        
-        return redirect('/')
+    title = request.form.get('title')
+    content = request.form.get('content')
+    
+    new_post = Post(title=title, content=content)
+    new_post.save()
+    
+    return redirect('/')
 
 @app.route('/reply/<post_id>', methods=['POST'])
+@login_required
 def reply(post_id):
     content = request.form.get('content')
-    post = Post.objects.get(id=post_id)  # Find the post to reply to
+    post = Post.objects.get(id=post_id)
     
-    # Create a new reply and link it to the post
     new_reply = Reply(content=content, post=post)
     new_reply.save()
-
-    # Add the reply to the post's list of replies
-    post.update(push__replies=new_reply)
     
+    post.update(push__replies=new_reply)
     return redirect(url_for('index'))
 
-@app.route('/like/<post_id>',methods=['POST','get'])
+@app.route('/like/<post_id>', methods=['POST', 'GET'])
+@login_required
 def like(post_id):
     post = Post.objects.get(id=post_id)
-    user=user_data.objects.get(id=current_user_id)
+    user = get_current_user()
+    
     if user in post.users_liked:
         user.update(pull__post_liked=post)
         post.update(pull__users_liked=user)
         post.update(inc__no_likes=-1)
-        return redirect(url_for('index')+"#"+post_id)
-
-    user.update(push__post_liked=post)
-    post.update(push__users_liked=user)
-    post.update(inc__no_likes=1)
-    return redirect(url_for('index')+"#"+post_id)
+    else:
+        user.update(push__post_liked=post)
+        post.update(push__users_liked=user)
+        post.update(inc__no_likes=1)
+    
+    return redirect(url_for('index') + "#" + str(post_id))
 
 if __name__ == '__main__':
     app.run(debug=True)
